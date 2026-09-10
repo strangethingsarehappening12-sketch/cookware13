@@ -5,26 +5,33 @@ interface ReminderCardProps {
   pitches: number
 }
 
+type ActionStatus = 'idle' | 'sharing' | 'downloading'
+
 export default function ReminderCard({ reminders, pitches }: ReminderCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
-  const [status, setStatus] = useState<'idle' | 'capturing'>('idle')
+  const [status, setStatus] = useState<ActionStatus>('idle')
 
-  const handleScreenshot = async () => {
-    if (!cardRef.current || status === 'capturing') return
-    setStatus('capturing')
+  // Renders just the card (border, background, counters, text) to a canvas —
+  // the buttons themselves are excluded via the data-screenshot-ignore tag.
+  const captureCard = async () => {
+    if (!cardRef.current) return null
+    const { default: html2canvas } = await import('html2canvas')
+    const canvas = await html2canvas(cardRef.current, {
+      backgroundColor: '#ffffff',
+      scale: 2, // sharper output for sharing/downloading
+      ignoreElements: (el) => el.getAttribute('data-screenshot-ignore') === 'true',
+    })
+    return canvas
+  }
 
+  const handleShare = async () => {
+    if (status !== 'idle') return
+    setStatus('sharing')
     try {
-      const { default: html2canvas } = await import('html2canvas')
-      const canvas = await html2canvas(cardRef.current, {
-        backgroundColor: '#ffffff',
-        scale: 2, // sharper output for sharing
-        ignoreElements: (el) => el.getAttribute('data-screenshot-ignore') === 'true',
-      })
-
+      const canvas = await captureCard()
+      if (!canvas) return
       const dataUrl = canvas.toDataURL('image/png')
 
-      // On mobile, try the native share sheet first — lets people share
-      // straight into the X/Twitter app instead of just downloading a file.
       if (navigator.share && navigator.canShare) {
         try {
           const blob = await (await fetch(dataUrl)).blob()
@@ -37,16 +44,40 @@ export default function ReminderCard({ reminders, pitches }: ReminderCardProps) 
             return
           }
         } catch {
-          // Share was cancelled or unsupported mid-flight — fall through to download.
+          // Share was cancelled or unsupported mid-flight — fall through.
         }
       }
 
+      // No native share sheet available (most desktop browsers) — download
+      // the image so it's ready to attach, and open a pre-filled X compose
+      // tab so posting is still one step away instead of a dead end.
+      const link = document.createElement('a')
+      link.href = dataUrl
+      link.download = `cookware-reminder-${reminders}.png`
+      link.click()
+
+      const tweetText = encodeURIComponent("Vlad, it's time to pitch tokenized Cookware. 🍳")
+      window.open(`https://x.com/intent/post?text=${tweetText}`, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      console.error('Share failed', err)
+    } finally {
+      setStatus('idle')
+    }
+  }
+
+  const handleDownload = async () => {
+    if (status !== 'idle') return
+    setStatus('downloading')
+    try {
+      const canvas = await captureCard()
+      if (!canvas) return
+      const dataUrl = canvas.toDataURL('image/png')
       const link = document.createElement('a')
       link.href = dataUrl
       link.download = `cookware-reminder-${reminders}.png`
       link.click()
     } catch (err) {
-      console.error('Screenshot failed', err)
+      console.error('Download failed', err)
     } finally {
       setStatus('idle')
     }
@@ -72,14 +103,22 @@ export default function ReminderCard({ reminders, pitches }: ReminderCardProps) 
         Vlad, it's time to pitch tokenized Cookware.
       </p>
 
-      <button
-        onClick={handleScreenshot}
-        disabled={status === 'capturing'}
-        data-screenshot-ignore="true"
-        className="mt-6 rounded-full border-[3px] border-ink bg-clay px-6 py-3 font-display text-sm font-bold text-cream shadow-thickSm transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 sm:text-base"
-      >
-        {status === 'capturing' ? 'CAPTURING…' : '📸 SCREENSHOT TO SHARE'}
-      </button>
+      <div data-screenshot-ignore="true" className="mt-6 flex flex-wrap gap-3">
+        <button
+          onClick={handleShare}
+          disabled={status !== 'idle'}
+          className="rounded-full border-[3px] border-ink bg-clay px-6 py-3 font-display text-sm font-bold text-cream shadow-thickSm transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 sm:text-base"
+        >
+          {status === 'sharing' ? 'SHARING…' : '📤 SHARE'}
+        </button>
+        <button
+          onClick={handleDownload}
+          disabled={status !== 'idle'}
+          className="rounded-full border-[3px] border-ink bg-white px-6 py-3 font-display text-sm font-bold text-ink shadow-thickSm transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 sm:text-base"
+        >
+          {status === 'downloading' ? 'SAVING…' : '⬇️ DOWNLOAD'}
+        </button>
+      </div>
     </div>
   )
 }
