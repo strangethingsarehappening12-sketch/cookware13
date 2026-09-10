@@ -116,14 +116,14 @@ export default function ReminderCard({ reminders, pitches }: ReminderCardProps) 
           disabled={status !== 'idle'}
           className="rounded-full border-[3px] border-ink bg-clay px-6 py-3 font-display text-sm font-bold text-cream shadow-thickSm transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 sm:text-base"
         >
-          {status === 'sharing' ? 'SHARING…' : '📤 SHARE'}
+          {status === 'sharing' ? 'SHARING…' : 'SHARE'}
         </button>
         <button
           onClick={handleDownload}
           disabled={status !== 'idle'}
           className="rounded-full border-[3px] border-ink bg-white px-6 py-3 font-display text-sm font-bold text-ink shadow-thickSm transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 sm:text-base"
         >
-          {status === 'downloading' ? 'SAVING…' : '⬇️ DOWNLOAD'}
+          {status === 'downloading' ? 'SAVING…' : 'DOWNLOAD'}
         </button>
       </div>
     </div>
