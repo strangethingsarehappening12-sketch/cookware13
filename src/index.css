@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  position: relative;
+  background-image: radial-gradient(#00000008 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Faint full-page watermark of the pot logo — sits behind all content,
+   stays put while the page scrolls. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: url('/cookware-logo.png');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(60vw, 640px);
+  opacity: 0.05;
+  pointer-events: none;
+}
+
+@keyframes wobble {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+.animate-wobble {
+  animation: wobble 3.2s ease-in-out infinite;
+  transform-origin: 50% 85%;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.85); }
+}
+.animate-pulse-dot {
+  animation: pulseDot 1.6s ease-in-out infinite;
+}
+
+@keyframes countUp {
+  0% { transform: translateY(6px); opacity: 0.3; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.animate-count {
+  animation: countUp 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-wobble, .animate-pulse-dot, .animate-count {
+    animation: none !important;
+  }
+}
+
+::selection {
+  background: #00C805;
+  color: #000000;
+}
