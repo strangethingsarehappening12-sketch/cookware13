@@ -16,7 +16,6 @@ const GALLERY_IMAGES: GalleryImage[] = [
   { src: '/gallery/spotlight-robinhood.jpg', alt: 'A hooded figure under the COOKWARE signal' },
   { src: '/gallery/sunset-reflection.jpg', alt: 'The pot glowing at sunset with its reflection' },
   { src: '/gallery/bear-shadow.jpg', alt: 'A shadow puppet bear holding a tiny pot' },
-  { src: '/gallery/archery-target.jpg', alt: 'An arrow landing dead center on a target' },
   { src: '/gallery/parchment-sketch.jpg', alt: 'An old parchment sketch of the pot of coins' },
 ]
 
