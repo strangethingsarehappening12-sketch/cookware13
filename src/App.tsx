@@ -3,7 +3,6 @@ import {
   bumpGlobalReminderCount,
   cookwareConfig,
   fetchGlobalReminderCount,
-  formatCompactUsd,
   getCurrentDay,
   getMarketCapProgress,
   MarketCapSnapshot,
@@ -127,14 +126,20 @@ export default function App() {
         <div className="grid gap-5 sm:grid-cols-3">
           <Counter label="REMINDERS TO VLAD" value={reminders} accent />
           <Counter label="PITCHES MADE" value={pitches} />
-          <Counter label="GOAL" value={cookwareConfig.targetMarketCap} formatValue={formatCompactUsd} />
+          <Counter
+            label="GOAL"
+            value={cookwareConfig.targetMarketCap}
+            formatValue={() => 'Billions Valuation'}
+            compact
+          />
         </div>
       </section>
 
       {/* $1B PROGRESS */}
       <section className="mx-auto max-w-5xl px-5 pb-16">
         <div className="rounded-3xl border-[3px] border-ink bg-white p-8 shadow-thick sm:p-12">
-          <h2 className="font-display text-3xl font-bold sm:text-4xl">COOKWARE → $1B</h2>
+          <p className="font-mono text-xs tracking-wide text-ink/50">1ST GOAL</p>
+          <h2 className="mt-1 font-display text-3xl font-bold sm:text-4xl">COOKWARE → $1B</h2>
           <p className="mt-2 text-sm text-ink/60">
             {marketCap.isLive
               ? `Live from DexScreener · $${Math.round(

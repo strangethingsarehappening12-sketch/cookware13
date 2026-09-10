@@ -48,10 +48,10 @@ export default function VladStatus({ status, onToggleDemo }: VladStatusProps) {
 
       <button
         onClick={onToggleDemo}
-        className="mt-6 rounded-full border-2 border-current px-4 py-1.5 font-mono text-[11px] tracking-wide opacity-50 transition-opacity hover:opacity-100"
+        className="mt-6 rounded-full border-[3px] border-ink bg-ink px-6 py-3 font-display text-sm font-bold text-cream shadow-thickSm transition-transform hover:-translate-y-0.5 hover:bg-clay active:translate-y-0 sm:text-base"
         aria-label="Toggle Vlad status"
       >
-        Status
+        🔄 TOGGLE STATUS
       </button>
     </div>
   )

@@ -7,9 +7,18 @@ interface CounterProps {
   prefix?: string
   /** Custom formatter for the displayed number (e.g. compact "$1bn"). Overrides prefix. */
   formatValue?: (value: number) => string
+  /** Use a smaller value font — for longer text values that would otherwise overflow the card. */
+  compact?: boolean
 }
 
-export default function Counter({ label, value, accent = false, prefix = '', formatValue }: CounterProps) {
+export default function Counter({
+  label,
+  value,
+  accent = false,
+  prefix = '',
+  formatValue,
+  compact = false,
+}: CounterProps) {
   const [displayValue, setDisplayValue] = useState(value)
   const [bump, setBump] = useState(false)
 
@@ -31,9 +40,9 @@ export default function Counter({ label, value, accent = false, prefix = '', for
       <p className="font-mono text-xs tracking-wide text-ink/60">{label}</p>
       <p
         key={displayValue}
-        className={`animate-count mt-2 font-display text-5xl font-bold tabular-nums sm:text-6xl ${
-          accent ? 'text-clay' : 'text-ink'
-        }`}
+        className={`animate-count mt-2 font-display font-bold tabular-nums ${
+          compact ? 'text-3xl sm:text-4xl' : 'text-5xl sm:text-6xl'
+        } ${accent ? 'text-clay' : 'text-ink'}`}
       >
         {prefix}
         {formatValue ? formatValue(displayValue) : displayValue.toLocaleString()}
