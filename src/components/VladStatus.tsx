@@ -51,7 +51,7 @@ export default function VladStatus({ status, onToggleDemo }: VladStatusProps) {
         className="mt-6 rounded-full border-[3px] border-ink bg-ink px-6 py-3 font-display text-sm font-bold text-cream shadow-thickSm transition-transform hover:-translate-y-0.5 hover:bg-clay active:translate-y-0 sm:text-base"
         aria-label="Toggle Vlad status"
       >
-        🔄 TOGGLE STATUS
+        Status
       </button>
     </div>
   )
