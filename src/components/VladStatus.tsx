@@ -32,9 +32,9 @@ export default function VladStatus({ status, onToggleDemo }: VladStatusProps) {
           </h3>
           <p className="mt-3 font-display text-2xl font-semibold opacity-90 sm:text-3xl">NOW WHAT?</p>
           <p className="mt-4 max-w-prose text-sm opacity-80 sm:text-base">
-            This isn't the ending — it's the next chapter. The counters don't stop. The
-            lore doesn't stop. Cookware still has to get to $1B, and someone still has
-            to keep count.
+            This isn't the ending — it's the next chapter. The counters don't stop. Vlad
+            has to keep pitching. The lore doesn't stop. Cookware still has to be valued
+            at billions, and someone still has to keep count.
           </p>
         </>
       ) : (
