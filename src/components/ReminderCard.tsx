@@ -86,9 +86,16 @@ export default function ReminderCard({ reminders, pitches }: ReminderCardProps) 
   return (
     <div
       ref={cardRef}
-      className="mx-auto max-w-xl rounded-3xl border-[3px] border-ink bg-white p-8 shadow-thick sm:p-12"
+      className="relative mx-auto max-w-xl overflow-hidden rounded-3xl border-[3px] border-ink bg-white p-8 shadow-thick sm:p-12"
     >
-      <div className="grid grid-cols-2 gap-4">
+      <img
+        src="/cookware-logo.png"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-1/2 z-0 w-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.08]"
+      />
+
+      <div className="relative z-10 grid grid-cols-2 gap-4">
         <div className="rounded-xl border-2 border-ink px-4 py-3 text-center">
           <p className="font-display text-2xl font-bold">{reminders}</p>
           <p className="font-mono text-[11px] text-ink/60">REMINDER{reminders === 1 ? '' : 'S'}</p>
@@ -99,11 +106,11 @@ export default function ReminderCard({ reminders, pitches }: ReminderCardProps) 
         </div>
       </div>
 
-      <p className="mt-6 font-display text-xl font-semibold sm:text-2xl">
+      <p className="relative z-10 mt-6 font-display text-xl font-semibold sm:text-2xl">
         Vlad, it's time to pitch tokenized Cookware.
       </p>
 
-      <div data-screenshot-ignore="true" className="mt-6 flex flex-wrap gap-3">
+      <div data-screenshot-ignore="true" className="relative z-10 mt-6 flex flex-wrap gap-3">
         <button
           onClick={handleShare}
           disabled={status !== 'idle'}
