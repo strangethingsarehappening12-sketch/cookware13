@@ -14,6 +14,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&family=Luckiest+Guy&display=swap" rel="stylesheet" />
     <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+    <script>
+      // Applies the theme before any CSS/React loads, so there's no flash of
+      // the wrong theme on first paint. Mirrors the logic in useTheme.ts —
+      // dark is the site default unless the visitor previously chose light.
+      (function () {
+        try {
+          var stored = localStorage.getItem('cookware_theme')
+          if (stored !== 'light') document.documentElement.classList.add('dark')
+        } catch (e) {
+          document.documentElement.classList.add('dark')
+        }
+      })()
+    </script>
   </head>
   <body class="bg-cream text-ink font-body">
     <div id="root"></div>
