@@ -129,7 +129,7 @@ export default function App() {
           <Counter
             label="GOAL"
             value={cookwareConfig.targetMarketCap}
-            formatValue={() => 'Billions Valuation'}
+            formatValue={() => 'COOKBILLIONS'}
             compact
           />
         </div>
