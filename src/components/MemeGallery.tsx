@@ -29,7 +29,7 @@ export default function MemeGallery() {
       {GALLERY_IMAGES.map((img, i) => (
         <div
           key={img.src}
-          className={`break-inside-avoid rounded-2xl border-[3px] border-ink bg-white p-2 shadow-thick transition-transform duration-200 hover:rotate-0 hover:-translate-y-1 ${
+          className={`break-inside-avoid rounded-2xl border-[3px] border-ink bg-cream p-2 shadow-thick transition-transform duration-200 hover:rotate-0 hover:-translate-y-1 ${
             ROTATIONS[i % ROTATIONS.length]
           }`}
         >

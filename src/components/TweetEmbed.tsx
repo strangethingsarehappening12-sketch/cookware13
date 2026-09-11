@@ -51,7 +51,7 @@ export default function TweetEmbed({ tweetUrl, className }: TweetEmbedProps) {
   return (
     <div ref={containerRef} className={className}>
       {!rendered && (
-        <div className="rounded-2xl border-[3px] border-ink bg-white p-6 text-sm text-ink/50">
+        <div className="rounded-2xl border-[3px] border-ink bg-cream p-6 text-sm text-ink/50">
           Loading tweet…
         </div>
       )}

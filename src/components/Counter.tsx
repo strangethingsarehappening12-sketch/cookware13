@@ -33,7 +33,7 @@ export default function Counter({
 
   return (
     <div
-      className={`rounded-2xl border-[3px] border-ink bg-white px-6 py-8 shadow-thick transition-transform ${
+      className={`rounded-2xl border-[3px] border-ink bg-cream px-6 py-8 shadow-thick transition-transform ${
         bump ? 'scale-[1.03]' : 'scale-100'
       }`}
     >

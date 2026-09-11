@@ -17,7 +17,7 @@ export default function LoreTimeline({ entries, currentDay }: LoreTimelineProps)
           <li key={entry.day} className={i === entries.length - 1 ? '' : 'mb-10'}>
             <span
               className={`absolute -left-[11px] flex h-5 w-5 items-center justify-center rounded-full border-[3px] border-ink ${
-                isPast ? 'bg-clay' : 'bg-white'
+                isPast ? 'bg-clay' : 'bg-cream'
               }`}
             />
             <p className="font-display text-2xl font-bold">DAY {entry.day}</p>

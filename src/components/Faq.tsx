@@ -36,7 +36,7 @@ export default function Faq() {
         return (
           <div
             key={item.question}
-            className="overflow-hidden rounded-2xl border-[3px] border-ink bg-white shadow-thickSm"
+            className="overflow-hidden rounded-2xl border-[3px] border-ink bg-cream shadow-thickSm"
           >
             <button
               onClick={() => setOpenIndex(isOpen ? null : i)}

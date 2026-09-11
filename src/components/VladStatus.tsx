@@ -11,7 +11,7 @@ export default function VladStatus({ status, onToggleDemo }: VladStatusProps) {
   return (
     <div
       className={`rounded-3xl border-[3px] border-ink p-8 shadow-thick transition-colors sm:p-10 ${
-        pitched ? 'bg-moss text-cream' : 'bg-white text-ink'
+        pitched ? 'bg-moss text-cream' : 'bg-cream text-ink'
       }`}
     >
       <div className="flex items-center gap-3">

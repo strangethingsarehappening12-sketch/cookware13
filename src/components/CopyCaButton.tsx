@@ -21,7 +21,7 @@ export default function CopyCaButton({ address }: CopyCaButtonProps) {
     <div className="relative inline-block">
       <button
         onClick={handleCopy}
-        className="rounded-full border-[3px] border-ink bg-white px-8 py-4 font-display text-lg font-bold text-ink shadow-thick transition-transform hover:-translate-y-0.5 active:translate-y-0"
+        className="rounded-full border-[3px] border-ink bg-cream px-8 py-4 font-display text-lg font-bold text-ink shadow-thick transition-transform hover:-translate-y-0.5 active:translate-y-0"
       >
         {copied ? 'COPIED!' : 'COPY CA'}
       </button>

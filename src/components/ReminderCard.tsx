@@ -17,7 +17,9 @@ export default function ReminderCard({ reminders, pitches }: ReminderCardProps) 
     if (!cardRef.current) return null
     const { default: html2canvas } = await import('html2canvas')
     const canvas = await html2canvas(cardRef.current, {
-      backgroundColor: '#ffffff',
+      // null keeps the rounded corners transparent in the export instead of
+      // forcing white — matters now that the card can be dark-themed too.
+      backgroundColor: null,
       scale: 2, // sharper output for sharing/downloading
       ignoreElements: (el) => el.getAttribute('data-screenshot-ignore') === 'true',
     })
@@ -86,7 +88,7 @@ export default function ReminderCard({ reminders, pitches }: ReminderCardProps) 
   return (
     <div
       ref={cardRef}
-      className="relative mx-auto max-w-xl overflow-hidden rounded-3xl border-[3px] border-ink bg-white p-8 shadow-thick sm:p-12"
+      className="relative mx-auto max-w-xl overflow-hidden rounded-3xl border-[3px] border-ink bg-cream p-8 shadow-thick sm:p-12"
     >
       <img
         src="/cookware-logo.png"
@@ -121,7 +123,7 @@ export default function ReminderCard({ reminders, pitches }: ReminderCardProps) 
         <button
           onClick={handleDownload}
           disabled={status !== 'idle'}
-          className="rounded-full border-[3px] border-ink bg-white px-6 py-3 font-display text-sm font-bold text-ink shadow-thickSm transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 sm:text-base"
+          className="rounded-full border-[3px] border-ink bg-cream px-6 py-3 font-display text-sm font-bold text-ink shadow-thickSm transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 sm:text-base"
         >
           {status === 'downloading' ? 'SAVING…' : 'DOWNLOAD'}
         </button>

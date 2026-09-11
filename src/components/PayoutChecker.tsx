@@ -17,7 +17,7 @@ export default function PayoutChecker() {
   }
 
   return (
-    <div className="rounded-3xl border-[3px] border-ink bg-white p-8 shadow-thick sm:p-12">
+    <div className="rounded-3xl border-[3px] border-ink bg-cream p-8 shadow-thick sm:p-12">
       <h2 className="font-display text-3xl font-bold sm:text-4xl">COOKWARE ON-CHAIN</h2>
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
