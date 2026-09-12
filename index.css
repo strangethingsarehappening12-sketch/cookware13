@@ -3,12 +3,6 @@
 @tailwind utilities;
 
 :root {
-  --color-cream: 255 255 255;
-  --color-ink: 10 10 10;
-  color-scheme: light;
-}
-
-.dark {
   --color-cream: 12 12 12;
   --color-ink: 240 240 240;
   color-scheme: dark;
@@ -24,7 +18,6 @@ body {
   color: rgb(var(--color-ink));
   background-image: radial-gradient(rgb(var(--color-ink) / 0.03) 1px, transparent 1px);
   background-size: 22px 22px;
-  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Faint full-page watermark of the pot logo — sits behind all content,
@@ -38,12 +31,8 @@ body::before {
   background-repeat: no-repeat;
   background-position: center;
   background-size: min(60vw, 640px);
-  opacity: 0.05;
-  pointer-events: none;
-}
-
-.dark body::before {
   opacity: 0.08;
+  pointer-events: none;
 }
 
 @keyframes wobble {

@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" id="theme-color-meta" content="#0c0c0c" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0c0c0c" />
     <title>COOKWARE — Robinhood Chain</title>
     <meta name="description" content="Day 1 of reminding Vlad to pitch Cookware. How many reminders until Cookware hits $1B?" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -16,22 +16,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&family=Luckiest+Guy&display=swap" rel="stylesheet" />
     <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
-    <script>
-      // Applies the theme before any CSS/React loads, so there's no flash of
-      // the wrong theme on first paint. Mirrors the logic in useTheme.ts —
-      // dark is the site default unless the visitor previously chose light.
-      (function () {
-        try {
-          var stored = localStorage.getItem('cookware_theme')
-          var isLight = stored === 'light'
-          if (!isLight) document.documentElement.classList.add('dark')
-          var meta = document.getElementById('theme-color-meta')
-          if (meta) meta.setAttribute('content', isLight ? '#ffffff' : '#0c0c0c')
-        } catch (e) {
-          document.documentElement.classList.add('dark')
-        }
-      })()
-    </script>
   </head>
   <body class="bg-cream text-ink font-body">
     <div id="root"></div>

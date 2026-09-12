@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useTheme } from '../hooks/useTheme'
 
 // Twitter/X's own embed script — loaded once via index.html — exposes this.
 declare global {
@@ -19,20 +18,15 @@ interface TweetEmbedProps {
 }
 
 /**
- * Renders a live tweet using X's official oEmbed widget, re-themed to match
- * the site's light/dark toggle.
+ * Renders a live tweet using X's official oEmbed widget, fixed to dark
+ * theme (the site itself is dark-only now).
  *
- * IMPORTANT: X's widget script replaces the <blockquote> with an iframe by
- * mutating the DOM directly — React never finds out. `widgetHostRef` below
- * is therefore a plain, permanently-childless-in-JSX div: React never
- * renders anything into it via JSX, so it never expects to reconcile its
- * contents, and it's safe to imperatively clear/rebuild it by hand on every
- * theme change without React and the widget script fighting over the same
- * nodes (which is what caused stale/duplicate widgets stacking on top of
- * each other when this used a React `key` to force a remount instead).
+ * widgetHostRef is a plain div that React never renders children into via
+ * JSX — X's widget script replaces content by mutating the DOM directly,
+ * outside React's knowledge, so this container is built and updated by
+ * hand instead of relying on React to reconcile it.
  */
 export default function TweetEmbed({ tweetUrl, className }: TweetEmbedProps) {
-  const { theme } = useTheme()
   const widgetHostRef = useRef<HTMLDivElement>(null)
   const [rendered, setRendered] = useState(false)
 
@@ -40,15 +34,11 @@ export default function TweetEmbed({ tweetUrl, className }: TweetEmbedProps) {
     const host = widgetHostRef.current
     if (!host) return
 
-    setRendered(false)
     let cancelled = false
-
-    // Wipe out whatever the widget script previously inserted here, then
-    // build a fresh, un-converted blockquote by hand for it to process.
     host.innerHTML = ''
     const blockquote = document.createElement('blockquote')
     blockquote.className = 'twitter-tweet'
-    blockquote.setAttribute('data-theme', theme)
+    blockquote.setAttribute('data-theme', 'dark')
     const link = document.createElement('a')
     link.href = tweetUrl
     link.textContent = 'Loading tweet…'
@@ -70,7 +60,7 @@ export default function TweetEmbed({ tweetUrl, className }: TweetEmbedProps) {
     return () => {
       cancelled = true
     }
-  }, [tweetUrl, theme])
+  }, [tweetUrl])
 
   return (
     <div className={className}>
