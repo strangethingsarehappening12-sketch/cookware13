@@ -5,11 +5,13 @@
 :root {
   --color-cream: 255 255 255;
   --color-ink: 10 10 10;
+  color-scheme: light;
 }
 
 .dark {
   --color-cream: 12 12 12;
   --color-ink: 240 240 240;
+  color-scheme: dark;
 }
 
 html {

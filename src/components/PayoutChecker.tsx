@@ -29,7 +29,7 @@ export default function PayoutChecker() {
           onChange={(e) => setAddress(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleCheck()}
           placeholder="0x..."
-          className="min-w-0 flex-1 rounded-full border-[3px] border-ink bg-cream px-5 py-3 font-mono text-sm text-ink outline-none placeholder:text-ink/40"
+          className="min-w-0 flex-1 appearance-none rounded-full border-[3px] border-ink bg-cream px-5 py-3 font-mono text-sm text-ink outline-none placeholder:text-ink/40"
         />
         <button
           onClick={handleCheck}

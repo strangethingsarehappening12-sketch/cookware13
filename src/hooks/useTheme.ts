@@ -28,6 +28,12 @@ export function useTheme() {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
+
+    // Keep iOS Safari's address-bar tint in sync with the manual toggle —
+    // without this it only reflects a static default, not the real state.
+    const meta = document.getElementById('theme-color-meta')
+    meta?.setAttribute('content', theme === 'dark' ? '#0c0c0c' : '#ffffff')
+
     try {
       window.localStorage.setItem(STORAGE_KEY, theme)
     } catch {
