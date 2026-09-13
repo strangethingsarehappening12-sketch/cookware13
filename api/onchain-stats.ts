@@ -48,24 +48,23 @@ interface TransfersResponse {
 }
 
 async function fetchDistributed() {
+  // Querying transfers FROM the distributor contract's own address 500s on
+  // this Blockscout deployment — likely something about how a batch-
+  // distribution contract's transfers get indexed from the sender side.
+  // Querying the $HOOD token's OWN transfer list instead (and filtering to
+  // this contract as the sender) is a different endpoint/code path that
+  // sidesteps whatever's breaking on the address-centric one — this is
+  // confirmed to work from the *recipient* side (the per-wallet payout
+  // checker), so token-centric listing is the more reliable approach here.
   let total = 0
   let payoutsCount = 0
-  // Deliberately NOT filtering server-side by `token`/`type` here — that
-  // combination is what's been returning a 500 from Blockscout for this
-  // address. Pulling everything for the address and filtering to $HOOD
-  // ourselves avoids depending on exactly which filter params this
-  // particular Blockscout deployment supports.
   let params: Record<string, string> = {}
 
   for (let page = 0; page < MAX_TRANSFER_PAGES; page++) {
-    const data = await blockscoutFetch<TransfersResponse>(
-      `/addresses/${DISTRIBUTOR}/token-transfers`,
-      params,
-    )
+    const data = await blockscoutFetch<TransfersResponse>(`/tokens/${HOOD_TOKEN}/transfers`, params)
     for (const t of data.items ?? []) {
       const isOutgoing = t.from?.hash?.toLowerCase() === DISTRIBUTOR.toLowerCase()
-      const isHood = t.token?.address_hash?.toLowerCase() === HOOD_TOKEN.toLowerCase()
-      if (isOutgoing && isHood && t.total?.value) {
+      if (isOutgoing && t.total?.value) {
         const decimals = Number(t.total.decimals ?? 18)
         total += Number(t.total.value) / 10 ** decimals
         payoutsCount += 1

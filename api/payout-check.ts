@@ -65,30 +65,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ...cached, cached: true })
     }
 
+    // Blockscout's token-transfers endpoint throws a 500 for an address
+    // with zero activity on this deployment, rather than an empty list —
+    // check first and skip straight to a clean zero when that's the case.
+    const counters = await blockscoutFetch<{
+      transactions_count?: string
+      token_transfers_count?: string
+    }>(`/addresses/${address}/counters`)
+    const hasActivity =
+      Number(counters.transactions_count ?? 0) > 0 || Number(counters.token_transfers_count ?? 0) > 0
+
     let total = 0
     let truncated = false
-    // Deliberately NOT filtering server-side by `token`/`type` — see the
-    // note in onchain-stats.ts. Filtering to $HOOD happens below instead.
-    let params: Record<string, string> = {}
 
-    for (let page = 0; page < MAX_TRANSFER_PAGES; page++) {
-      const data = await blockscoutFetch<TransfersResponse>(
-        `/addresses/${address}/token-transfers`,
-        params,
-      )
-      for (const t of data.items ?? []) {
-        const fromDistributor = t.from?.hash?.toLowerCase() === DISTRIBUTOR.toLowerCase()
-        const isHood = t.token?.address_hash?.toLowerCase() === HOOD_TOKEN.toLowerCase()
-        if (fromDistributor && isHood && t.total?.value) {
-          const decimals = Number(t.total.decimals ?? 18)
-          total += Number(t.total.value) / 10 ** decimals
+    if (hasActivity) {
+      // Deliberately NOT filtering server-side by `token`/`type` — see the
+      // note in onchain-stats.ts. Filtering to $HOOD happens below instead.
+      let params: Record<string, string> = {}
+
+      for (let page = 0; page < MAX_TRANSFER_PAGES; page++) {
+        const data = await blockscoutFetch<TransfersResponse>(
+          `/addresses/${address}/token-transfers`,
+          params,
+        )
+        for (const t of data.items ?? []) {
+          const fromDistributor = t.from?.hash?.toLowerCase() === DISTRIBUTOR.toLowerCase()
+          const isHood = t.token?.address_hash?.toLowerCase() === HOOD_TOKEN.toLowerCase()
+          if (fromDistributor && isHood && t.total?.value) {
+            const decimals = Number(t.total.decimals ?? 18)
+            total += Number(t.total.value) / 10 ** decimals
+          }
         }
+        if (!data.next_page_params) break
+        params = Object.fromEntries(
+          Object.entries(data.next_page_params).map(([k, v]) => [k, String(v)]),
+        )
+        if (page === MAX_TRANSFER_PAGES - 1) truncated = true
       }
-      if (!data.next_page_params) break
-      params = Object.fromEntries(
-        Object.entries(data.next_page_params).map(([k, v]) => [k, String(v)]),
-      )
-      if (page === MAX_TRANSFER_PAGES - 1) truncated = true
     }
 
     const payload: CachedPayload = { value: total, isLive: true, truncated }
