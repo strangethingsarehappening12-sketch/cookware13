@@ -23,6 +23,7 @@ import MemeGallery from './components/MemeGallery'
 import CopyCaButton from './components/CopyCaButton'
 import PayoutChecker from './components/PayoutChecker'
 import PriceChart from './components/PriceChart'
+import HolderRewards from './components/HolderRewards'
 
 const TIMELINE: TimelineEntry[] = [
   { day: 1, note: 'First reminder.' },
@@ -156,11 +157,6 @@ export default function App() {
         </div>
       </section>
 
-      {/* PRICE CHART */}
-      <section className="mx-auto max-w-5xl px-5 pb-16">
-        <PriceChart />
-      </section>
-
       {/* COOKWARE ON-CHAIN — PAYOUT CHECKER */}
       <section className="mx-auto max-w-5xl px-5 pb-16">
         <PayoutChecker />
@@ -231,6 +227,16 @@ Maybe he just needed a reminder.`}
       {/* DAILY REMINDER / SHARE CARD */}
       <section className="mx-auto max-w-5xl px-5 py-16">
         <ReminderCard reminders={reminders} pitches={pitches} />
+      </section>
+
+      {/* HOLDER REWARDS */}
+      <section className="mx-auto max-w-5xl px-5 pb-16">
+        <HolderRewards />
+      </section>
+
+      {/* PRICE CHART */}
+      <section className="mx-auto max-w-5xl px-5 pb-16">
+        <PriceChart />
       </section>
 
       {/* TIMELINE */}

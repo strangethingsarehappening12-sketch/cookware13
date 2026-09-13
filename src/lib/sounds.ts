@@ -19,7 +19,37 @@ function getAudioContext(): AudioContext | null {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// SOUND ON/OFF PREFERENCE — on by default, remembered after that.
+// ─────────────────────────────────────────────────────────────
+const SOUND_STORAGE_KEY = 'cookware_sound_enabled'
+
+function readStoredSoundPreference(): boolean {
+  try {
+    return window.localStorage.getItem(SOUND_STORAGE_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
+let soundEnabled = typeof window !== 'undefined' ? readStoredSoundPreference() : true
+
+export function isSoundEnabled(): boolean {
+  return soundEnabled
+}
+
+export function setSoundEnabled(enabled: boolean) {
+  soundEnabled = enabled
+  try {
+    window.localStorage.setItem(SOUND_STORAGE_KEY, String(enabled))
+  } catch {
+    // localStorage unavailable — preference just won't persist across visits
+  }
+}
+
 export function playChaChing() {
+  if (!soundEnabled) return
+
   const ctx = getAudioContext()
   if (!ctx) return
 

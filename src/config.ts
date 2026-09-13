@@ -77,6 +77,7 @@ const DEXSCREENER_TOKENS_URL = 'https://api.dexscreener.com/latest/dex/tokens/'
 
 interface DexScreenerPair {
   chainId: string
+  pairAddress?: string
   liquidity?: { usd?: number }
   marketCap?: number
   fdv?: number
@@ -147,98 +148,48 @@ export async function getMarketCapProgress(): Promise<MarketCapSnapshot> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// PRICE HISTORY (for the mini chart)
-// GeckoTerminal (same team as CoinGecko) has a free, documented public
-// API that already indexes Robinhood Chain under network id 'robinhood',
-// including real historical OHLCV candles — no key required.
-// https://apiguide.geckoterminal.com
+// PAIR ADDRESS (for the embedded DexScreener chart)
+// The live price chart uses DexScreener's own embeddable widget — the
+// real interactive chart with its built-in timeframe/candle-type controls
+// — rather than a custom-built one. It just needs the pair address to
+// point at, which is cached after the first lookup since it never changes.
 // ─────────────────────────────────────────────────────────────
-const GECKOTERMINAL_API_BASE = 'https://api.geckoterminal.com/api/v2'
+let cachedPairAddress: string | null = null
 
-export interface PricePoint {
-  time: number // unix seconds
-  open: number
-  high: number
-  low: number
-  close: number
-}
-
-export interface PriceHistorySnapshot {
-  points: PricePoint[]
-  currentPrice: number | null
-  isLive: boolean
+export interface PairAddressResult {
+  pairAddress: string | null
   error?: string
 }
 
-interface GeckoTerminalPool {
-  attributes?: {
-    address?: string
-    reserve_in_usd?: string
-  }
-}
+export async function getBestPairAddress(): Promise<PairAddressResult> {
+  if (cachedPairAddress) return { pairAddress: cachedPairAddress }
 
-// The pool address doesn't change, so resolve it once per page load rather
-// than on every poll — cuts the extra lookup call down to a one-off.
-let cachedPoolAddress: string | null = null
-
-async function resolveBestPoolAddress(): Promise<string | null> {
-  if (cachedPoolAddress) return cachedPoolAddress
   const { tokenAddress, dexscreenerChainId } = cookwareConfig
-  if (!tokenAddress) return null
+  if (!tokenAddress) return { pairAddress: null, error: 'No tokenAddress configured yet.' }
 
-  const res = await fetch(
-    `${GECKOTERMINAL_API_BASE}/networks/${dexscreenerChainId}/tokens/${tokenAddress}/pools`,
-  )
-  if (!res.ok) throw new Error(`GeckoTerminal returned ${res.status}`)
-  const data = (await res.json()) as { data?: GeckoTerminalPool[] }
-  const pools = data.data ?? []
-  if (pools.length === 0) return null
-
-  const best = pools.reduce((top, p) =>
-    Number(p.attributes?.reserve_in_usd ?? 0) > Number(top.attributes?.reserve_in_usd ?? 0)
-      ? p
-      : top,
-  )
-  cachedPoolAddress = best.attributes?.address ?? null
-  return cachedPoolAddress
-}
-
-/**
- * Recent hourly price history for the COOKWARE/pair, for the mini chart.
- * Defaults to the last ~48 hourly candles (about 2 days) — plenty for a
- * sparkline without over-fetching.
- */
-export async function getPriceHistory(limit = 48): Promise<PriceHistorySnapshot> {
   try {
-    const poolAddress = await resolveBestPoolAddress()
-    if (!poolAddress) {
-      return { points: [], currentPrice: null, isLive: false, error: 'No trading pool found yet.' }
+    const res = await fetch(`${DEXSCREENER_TOKENS_URL}${tokenAddress}`)
+    if (!res.ok) throw new Error(`DexScreener returned ${res.status}`)
+    const data = (await res.json()) as { pairs: DexScreenerPair[] | null }
+    const pairsOnChain = (data.pairs ?? []).filter((p) => p.chainId === dexscreenerChainId)
+
+    if (pairsOnChain.length === 0) {
+      return { pairAddress: null, error: 'No trading pair found yet for this token on this chain.' }
     }
 
-    const res = await fetch(
-      `${GECKOTERMINAL_API_BASE}/networks/${cookwareConfig.dexscreenerChainId}/pools/${poolAddress}/ohlcv/hour?aggregate=1&limit=${limit}`,
+    const best = pairsOnChain.reduce((top, p) =>
+      (p.liquidity?.usd ?? 0) > (top.liquidity?.usd ?? 0) ? p : top,
     )
-    if (!res.ok) throw new Error(`GeckoTerminal returned ${res.status}`)
-    const data = (await res.json()) as {
-      data?: { attributes?: { ohlcv_list?: [number, number, number, number, number, number][] } }
-    }
-    const raw = data.data?.attributes?.ohlcv_list ?? []
-    if (raw.length === 0) {
-      return { points: [], currentPrice: null, isLive: false, error: 'No price history yet.' }
+    if (!best.pairAddress) {
+      return { pairAddress: null, error: 'Pair found, but no pair address was returned.' }
     }
 
-    // GeckoTerminal returns newest-first; chart wants oldest-first.
-    const points: PricePoint[] = raw
-      .map(([time, open, high, low, close]) => ({ time, open, high, low, close }))
-      .reverse()
-
-    return { points, currentPrice: points[points.length - 1].close, isLive: true }
+    cachedPairAddress = best.pairAddress
+    return { pairAddress: cachedPairAddress }
   } catch (err) {
     return {
-      points: [],
-      currentPrice: null,
-      isLive: false,
-      error: err instanceof Error ? err.message : 'Unknown error fetching price history.',
+      pairAddress: null,
+      error: err instanceof Error ? err.message : 'Unknown error resolving the trading pair.',
     }
   }
 }
@@ -326,15 +277,17 @@ const MAX_TRANSFER_PAGES = 40
 /**
  * Total $HOOD sent out by the distributor wallet to holders, summed from
  * Blockscout's token-transfer history for that address (outgoing transfers
- * of the HOOD token only — incoming funding transfers are excluded).
+ * of the HOOD token only — incoming funding transfers are excluded), along
+ * with how many individual payout transfers made up that total.
  */
-export async function getTotalHoodDistributed(): Promise<StatValue> {
+export async function getTotalHoodDistributed(): Promise<StatValue & { payoutsCount?: number }> {
   const { distributorAddress, hoodTokenAddress } = cookwareConfig
   if (!distributorAddress || !hoodTokenAddress) {
     return { value: null, isLive: false, error: 'Distributor or HOOD token address not configured yet.' }
   }
 
   let total = 0
+  let payoutsCount = 0
   let query: Record<string, string> = { token: hoodTokenAddress, type: 'ERC-20' }
 
   try {
@@ -352,11 +305,12 @@ export async function getTotalHoodDistributed(): Promise<StatValue> {
         if (isOutgoing && t.total?.value) {
           const decimals = Number(t.total.decimals ?? 18)
           total += Number(t.total.value) / 10 ** decimals
+          payoutsCount += 1
         }
       }
 
       if (!data.next_page_params) {
-        return { value: total, isLive: true }
+        return { value: total, isLive: true, payoutsCount }
       }
       query = Object.fromEntries(
         Object.entries({ token: hoodTokenAddress, type: 'ERC-20', ...data.next_page_params }).map(
@@ -366,13 +320,71 @@ export async function getTotalHoodDistributed(): Promise<StatValue> {
     }
     // Hit the page cap before running out of pages — still a real, live number,
     // just possibly an undercount of the true all-time total.
-    return { value: total, isLive: true, truncated: true }
+    return { value: total, isLive: true, payoutsCount, truncated: true }
   } catch (err) {
     return {
       value: null,
       isLive: false,
       error: err instanceof Error ? err.message : 'Unknown error fetching HOOD distributed.',
     }
+  }
+}
+
+/** $HOOD's current USD price, if Blockscout has an exchange rate on file for it. */
+async function getHoodUsdPrice(): Promise<number | null> {
+  const { hoodTokenAddress } = cookwareConfig
+  if (!hoodTokenAddress) return null
+  try {
+    const res = await fetch(`${BLOCKSCOUT_API_BASE}/tokens/${hoodTokenAddress}`)
+    if (!res.ok) return null
+    const data = (await res.json()) as { exchange_rate?: string | null }
+    const rate = Number(data.exchange_rate)
+    return Number.isFinite(rate) && rate > 0 ? rate : null
+  } catch {
+    return null
+  }
+}
+
+export interface HolderRewardsSummary {
+  isLive: boolean
+  error?: string
+  /** Total $HOOD paid out, in USD — null if a live price isn't available. */
+  totalUsd: number | null
+  /** Total $HOOD paid out, in HOOD tokens. */
+  totalHood: number | null
+  /** Number of individual payout transfers. */
+  payoutsCount: number | null
+  /** Number of distinct COOKWARE holders (i.e. eligible/earning). */
+  holdersCount: number | null
+  truncated?: boolean
+}
+
+/** Combined snapshot for the "HOLDER REWARDS" summary card. */
+export async function getHolderRewardsSummary(): Promise<HolderRewardsSummary> {
+  const [distributed, holders, hoodPrice] = await Promise.all([
+    getTotalHoodDistributed(),
+    getHolderCount(),
+    getHoodUsdPrice(),
+  ])
+
+  if (!distributed.isLive) {
+    return {
+      isLive: false,
+      error: distributed.error ?? 'Unable to load holder rewards right now.',
+      totalUsd: null,
+      totalHood: null,
+      payoutsCount: null,
+      holdersCount: holders.isLive ? holders.value : null,
+    }
+  }
+
+  return {
+    isLive: true,
+    totalUsd: hoodPrice && distributed.value != null ? distributed.value * hoodPrice : null,
+    totalHood: distributed.value,
+    payoutsCount: distributed.payoutsCount ?? null,
+    holdersCount: holders.isLive ? holders.value : null,
+    truncated: distributed.truncated,
   }
 }
 
