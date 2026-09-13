@@ -222,127 +222,22 @@ export function formatCompactNumber(value: number): string {
 }
 
 // ─────────────────────────────────────────────────────────────
-// ON-CHAIN STATS: HOLDER COUNT + $HOOD DISTRIBUTED
-// Both pulled straight from Robinhood Chain's official Blockscout
-// explorer, which exposes a free public REST API — no key needed.
-// https://robinhoodchain.blockscout.com/api-docs
+// ON-CHAIN STATS: HOLDER REWARDS + PER-WALLET PAYOUT CHECK
+// Both now go through our own serverless API routes (/api/onchain-stats,
+// /api/payout-check) instead of calling Blockscout directly from the
+// browser. Those routes call Blockscout's PRO API (fast, higher rate
+// limit, falls back to the free public instance if no key is configured
+// yet) and cache results briefly in Redis — so repeat visitors get an
+// instant cached response instead of everyone re-triggering the same
+// slow paginated lookup independently.
 // ─────────────────────────────────────────────────────────────
-const BLOCKSCOUT_API_BASE = 'https://robinhoodchain.blockscout.com/api/v2'
 
 export interface StatValue {
   value: number | null
   isLive: boolean
   error?: string
-  /** True if we hit the pagination safety cap and stopped early — the real total may be higher. */
+  /** True if the underlying lookup hit its pagination safety cap — the real total may be higher. */
   truncated?: boolean
-}
-
-/** Current holder count for the COOKWARE token, read from Blockscout's token counters endpoint. */
-export async function getHolderCount(): Promise<StatValue> {
-  const { tokenAddress } = cookwareConfig
-  if (!tokenAddress) {
-    return { value: null, isLive: false, error: 'No tokenAddress configured yet.' }
-  }
-
-  try {
-    const res = await fetch(`${BLOCKSCOUT_API_BASE}/tokens/${tokenAddress}/counters`)
-    if (!res.ok) throw new Error(`Blockscout returned ${res.status}`)
-    const data = (await res.json()) as { token_holders_count?: string }
-    const count = Number(data.token_holders_count)
-    if (!Number.isFinite(count)) throw new Error('No holder count in response.')
-    return { value: count, isLive: true }
-  } catch (err) {
-    return {
-      value: null,
-      isLive: false,
-      error: err instanceof Error ? err.message : 'Unknown error fetching holder count.',
-    }
-  }
-}
-
-interface BlockscoutTokenTransfer {
-  from?: { hash?: string }
-  total?: { value?: string; decimals?: string } | null
-}
-
-interface BlockscoutTokenTransfersResponse {
-  items: BlockscoutTokenTransfer[]
-  next_page_params: Record<string, string | number> | null
-}
-
-// Safety cap on pagination so a very long distribution history can't hang
-// the page or hammer the free public API on every visitor's browser.
-const MAX_TRANSFER_PAGES = 40
-
-/**
- * Total $HOOD sent out by the distributor wallet to holders, summed from
- * Blockscout's token-transfer history for that address (outgoing transfers
- * of the HOOD token only — incoming funding transfers are excluded), along
- * with how many individual payout transfers made up that total.
- */
-export async function getTotalHoodDistributed(): Promise<StatValue & { payoutsCount?: number }> {
-  const { distributorAddress, hoodTokenAddress } = cookwareConfig
-  if (!distributorAddress || !hoodTokenAddress) {
-    return { value: null, isLive: false, error: 'Distributor or HOOD token address not configured yet.' }
-  }
-
-  let total = 0
-  let payoutsCount = 0
-  let query: Record<string, string> = { token: hoodTokenAddress, type: 'ERC-20' }
-
-  try {
-    for (let page = 0; page < MAX_TRANSFER_PAGES; page++) {
-      const res = await fetch(
-        `${BLOCKSCOUT_API_BASE}/addresses/${distributorAddress}/token-transfers?${new URLSearchParams(
-          query,
-        ).toString()}`,
-      )
-      if (!res.ok) throw new Error(`Blockscout returned ${res.status}`)
-      const data = (await res.json()) as BlockscoutTokenTransfersResponse
-
-      for (const t of data.items ?? []) {
-        const isOutgoing = t.from?.hash?.toLowerCase() === distributorAddress.toLowerCase()
-        if (isOutgoing && t.total?.value) {
-          const decimals = Number(t.total.decimals ?? 18)
-          total += Number(t.total.value) / 10 ** decimals
-          payoutsCount += 1
-        }
-      }
-
-      if (!data.next_page_params) {
-        return { value: total, isLive: true, payoutsCount }
-      }
-      query = Object.fromEntries(
-        Object.entries({ token: hoodTokenAddress, type: 'ERC-20', ...data.next_page_params }).map(
-          ([k, v]) => [k, String(v)],
-        ),
-      )
-    }
-    // Hit the page cap before running out of pages — still a real, live number,
-    // just possibly an undercount of the true all-time total.
-    return { value: total, isLive: true, payoutsCount, truncated: true }
-  } catch (err) {
-    return {
-      value: null,
-      isLive: false,
-      error: err instanceof Error ? err.message : 'Unknown error fetching HOOD distributed.',
-    }
-  }
-}
-
-/** $HOOD's current USD price, if Blockscout has an exchange rate on file for it. */
-async function getHoodUsdPrice(): Promise<number | null> {
-  const { hoodTokenAddress } = cookwareConfig
-  if (!hoodTokenAddress) return null
-  try {
-    const res = await fetch(`${BLOCKSCOUT_API_BASE}/tokens/${hoodTokenAddress}`)
-    if (!res.ok) return null
-    const data = (await res.json()) as { exchange_rate?: string | null }
-    const rate = Number(data.exchange_rate)
-    return Number.isFinite(rate) && rate > 0 ? rate : null
-  } catch {
-    return null
-  }
 }
 
 export interface HolderRewardsSummary {
@@ -361,30 +256,21 @@ export interface HolderRewardsSummary {
 
 /** Combined snapshot for the "HOLDER REWARDS" summary card. */
 export async function getHolderRewardsSummary(): Promise<HolderRewardsSummary> {
-  const [distributed, holders, hoodPrice] = await Promise.all([
-    getTotalHoodDistributed(),
-    getHolderCount(),
-    getHoodUsdPrice(),
-  ])
-
-  if (!distributed.isLive) {
+  try {
+    const res = await fetch('/api/onchain-stats')
+    if (!res.ok) throw new Error(`Stats API returned ${res.status}`)
+    const data = (await res.json()) as Omit<HolderRewardsSummary, 'error'> & { error?: string }
+    if (!data.isLive) throw new Error(data.error ?? 'On-chain stats unavailable right now.')
+    return data
+  } catch (err) {
     return {
       isLive: false,
-      error: distributed.error ?? 'Unable to load holder rewards right now.',
+      error: err instanceof Error ? err.message : 'Unknown error fetching holder rewards.',
       totalUsd: null,
       totalHood: null,
       payoutsCount: null,
-      holdersCount: holders.isLive ? holders.value : null,
+      holdersCount: null,
     }
-  }
-
-  return {
-    isLive: true,
-    totalUsd: hoodPrice && distributed.value != null ? distributed.value * hoodPrice : null,
-    totalHood: distributed.value,
-    payoutsCount: distributed.payoutsCount ?? null,
-    holdersCount: holders.isLive ? holders.value : null,
-    truncated: distributed.truncated,
   }
 }
 
@@ -392,54 +278,20 @@ export async function getHolderRewardsSummary(): Promise<HolderRewardsSummary> {
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/
 
 /**
- * How much $HOOD a specific wallet has received from the distributor, summed
- * from that wallet's own token-transfer history (filtered to transfers whose
- * sender is the distributor). Querying the wallet's history rather than the
- * distributor's keeps this fast — one holder's history is a lot shorter than
- * the whole campaign's.
+ * How much $HOOD a specific wallet has received from the distributor —
+ * looked up (and briefly cached) server-side via /api/payout-check.
  */
 export async function getHoodReceivedByAddress(walletAddress: string): Promise<StatValue> {
-  const { distributorAddress, hoodTokenAddress } = cookwareConfig
   const address = walletAddress.trim()
-
   if (!EVM_ADDRESS_RE.test(address)) {
     return { value: null, isLive: false, error: "That doesn't look like a valid wallet address." }
   }
-  if (!distributorAddress || !hoodTokenAddress) {
-    return { value: null, isLive: false, error: 'Distributor or HOOD token address not configured yet.' }
-  }
-
-  let total = 0
-  let query: Record<string, string> = { token: hoodTokenAddress, type: 'ERC-20' }
 
   try {
-    for (let page = 0; page < MAX_TRANSFER_PAGES; page++) {
-      const res = await fetch(
-        `${BLOCKSCOUT_API_BASE}/addresses/${address}/token-transfers?${new URLSearchParams(
-          query,
-        ).toString()}`,
-      )
-      if (!res.ok) throw new Error(`Blockscout returned ${res.status}`)
-      const data = (await res.json()) as BlockscoutTokenTransfersResponse
-
-      for (const t of data.items ?? []) {
-        const fromDistributor = t.from?.hash?.toLowerCase() === distributorAddress.toLowerCase()
-        if (fromDistributor && t.total?.value) {
-          const decimals = Number(t.total.decimals ?? 18)
-          total += Number(t.total.value) / 10 ** decimals
-        }
-      }
-
-      if (!data.next_page_params) {
-        return { value: total, isLive: true }
-      }
-      query = Object.fromEntries(
-        Object.entries({ token: hoodTokenAddress, type: 'ERC-20', ...data.next_page_params }).map(
-          ([k, v]) => [k, String(v)],
-        ),
-      )
-    }
-    return { value: total, isLive: true, truncated: true }
+    const res = await fetch(`/api/payout-check?address=${encodeURIComponent(address)}`)
+    const data = (await res.json()) as StatValue
+    if (!res.ok) throw new Error(data.error ?? `Payout check API returned ${res.status}`)
+    return { ...data, isLive: true }
   } catch (err) {
     return {
       value: null,
