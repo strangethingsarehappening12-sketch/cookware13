@@ -8,6 +8,7 @@ import {
   MarketCapSnapshot,
   VladStatus as VladStatusType,
 } from './config'
+import { playChaChing } from './lib/sounds'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import Header from './components/Header'
 import Footer from './components/Footer'
@@ -21,6 +22,7 @@ import Faq from './components/Faq'
 import MemeGallery from './components/MemeGallery'
 import CopyCaButton from './components/CopyCaButton'
 import PayoutChecker from './components/PayoutChecker'
+import PriceChart from './components/PriceChart'
 
 const TIMELINE: TimelineEntry[] = [
   { day: 1, note: 'First reminder.' },
@@ -75,6 +77,7 @@ export default function App() {
   }, [])
 
   const handleRemind = () => {
+    playChaChing()
     // Bump immediately so the click feels instant, then reconcile with
     // whatever the server actually recorded (handles concurrent clickers).
     setReminders((n) => n + 1)
@@ -87,7 +90,7 @@ export default function App() {
 
   return (
     <div id="top" className="min-h-screen">
-      <Header onRemind={handleRemind} />
+      <Header />
 
       {/* HERO */}
       <section className="mx-auto max-w-5xl px-5 pb-16 pt-14 sm:pt-20">
@@ -122,7 +125,7 @@ export default function App() {
       </section>
 
       {/* LIVE COUNTERS */}
-      <section className="mx-auto max-w-5xl px-5 pb-16">
+      <section id="counters" className="mx-auto max-w-5xl px-5 pb-16">
         <div className="grid gap-5 sm:grid-cols-3">
           <Counter label="REMINDERS TO VLAD" value={reminders} accent />
           <Counter label="PITCHES MADE" value={pitches} />
@@ -151,6 +154,11 @@ export default function App() {
             <ProgressBar progress={marketCap.progress} fromLabel="$0" toLabel="$1,000,000,000" />
           </div>
         </div>
+      </section>
+
+      {/* PRICE CHART */}
+      <section className="mx-auto max-w-5xl px-5 pb-16">
+        <PriceChart />
       </section>
 
       {/* COOKWARE ON-CHAIN — PAYOUT CHECKER */}

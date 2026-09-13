@@ -146,6 +146,100 @@ export async function getMarketCapProgress(): Promise<MarketCapSnapshot> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// PRICE HISTORY (for the mini chart)
+// GeckoTerminal (same team as CoinGecko) has a free, documented public
+// API that already indexes Robinhood Chain under network id 'robinhood',
+// including real historical OHLCV candles — no key required.
+// https://apiguide.geckoterminal.com
+// ─────────────────────────────────────────────────────────────
+const GECKOTERMINAL_API_BASE = 'https://api.geckoterminal.com/api/v2'
+
+export interface PricePoint {
+  time: number // unix seconds
+  price: number
+}
+
+export interface PriceHistorySnapshot {
+  points: PricePoint[]
+  currentPrice: number | null
+  isLive: boolean
+  error?: string
+}
+
+interface GeckoTerminalPool {
+  attributes?: {
+    address?: string
+    reserve_in_usd?: string
+  }
+}
+
+// The pool address doesn't change, so resolve it once per page load rather
+// than on every poll — cuts the extra lookup call down to a one-off.
+let cachedPoolAddress: string | null = null
+
+async function resolveBestPoolAddress(): Promise<string | null> {
+  if (cachedPoolAddress) return cachedPoolAddress
+  const { tokenAddress, dexscreenerChainId } = cookwareConfig
+  if (!tokenAddress) return null
+
+  const res = await fetch(
+    `${GECKOTERMINAL_API_BASE}/networks/${dexscreenerChainId}/tokens/${tokenAddress}/pools`,
+  )
+  if (!res.ok) throw new Error(`GeckoTerminal returned ${res.status}`)
+  const data = (await res.json()) as { data?: GeckoTerminalPool[] }
+  const pools = data.data ?? []
+  if (pools.length === 0) return null
+
+  const best = pools.reduce((top, p) =>
+    Number(p.attributes?.reserve_in_usd ?? 0) > Number(top.attributes?.reserve_in_usd ?? 0)
+      ? p
+      : top,
+  )
+  cachedPoolAddress = best.attributes?.address ?? null
+  return cachedPoolAddress
+}
+
+/**
+ * Recent hourly price history for the COOKWARE/pair, for the mini chart.
+ * Defaults to the last ~48 hourly candles (about 2 days) — plenty for a
+ * sparkline without over-fetching.
+ */
+export async function getPriceHistory(limit = 48): Promise<PriceHistorySnapshot> {
+  try {
+    const poolAddress = await resolveBestPoolAddress()
+    if (!poolAddress) {
+      return { points: [], currentPrice: null, isLive: false, error: 'No trading pool found yet.' }
+    }
+
+    const res = await fetch(
+      `${GECKOTERMINAL_API_BASE}/networks/${cookwareConfig.dexscreenerChainId}/pools/${poolAddress}/ohlcv/hour?aggregate=1&limit=${limit}`,
+    )
+    if (!res.ok) throw new Error(`GeckoTerminal returned ${res.status}`)
+    const data = (await res.json()) as {
+      data?: { attributes?: { ohlcv_list?: [number, number, number, number, number, number][] } }
+    }
+    const raw = data.data?.attributes?.ohlcv_list ?? []
+    if (raw.length === 0) {
+      return { points: [], currentPrice: null, isLive: false, error: 'No price history yet.' }
+    }
+
+    // GeckoTerminal returns newest-first; chart wants oldest-first.
+    const points: PricePoint[] = raw
+      .map(([time, , , , close]) => ({ time, price: close }))
+      .reverse()
+
+    return { points, currentPrice: points[points.length - 1].price, isLive: true }
+  } catch (err) {
+    return {
+      points: [],
+      currentPrice: null,
+      isLive: false,
+      error: err instanceof Error ? err.message : 'Unknown error fetching price history.',
+    }
+  }
+}
+
 export function getCurrentDay(launchDate: string, now: Date = new Date()): number {
   const start = new Date(launchDate + 'T00:00:00')
   const diffMs = now.getTime() - start.getTime()
