@@ -81,6 +81,7 @@ interface CachedPayload {
   truncated: boolean
   holdersCount: number | null
   totalUsd: number | null
+  error?: string
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -90,11 +91,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ...cached, cached: true })
     }
 
+    let distributedError: string | null = null
     const [holdersData, distributed, hoodInfo] = await Promise.all([
       blockscoutFetch<{ token_holders_count?: string }>(`/tokens/${COOKWARE_TOKEN}/counters`).catch(
         () => null,
       ),
-      fetchDistributed().catch(() => null),
+      fetchDistributed().catch((err) => {
+        distributedError = err instanceof Error ? err.message : 'Unknown error.'
+        return null
+      }),
       blockscoutFetch<{ exchange_rate?: string | null }>(`/tokens/${HOOD_TOKEN}`).catch(() => null),
     ])
 
@@ -109,6 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       holdersCount: holdersCount !== null && Number.isFinite(holdersCount) ? holdersCount : null,
       totalUsd:
         distributed && hoodPrice && Number.isFinite(hoodPrice) ? distributed.total * hoodPrice : null,
+      ...(distributed === null && { error: distributedError ?? 'Unable to load holder rewards right now.' }),
     }
 
     if (payload.isLive) {
