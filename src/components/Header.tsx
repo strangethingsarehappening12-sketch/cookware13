@@ -16,12 +16,12 @@ export default function Header() {
           <a href="#faq" className="hover:text-clay">
             FAQ
           </a>
-          <a href="#counters" className="hover:text-clay">
+          <a href="#remind" className="hover:text-clay">
             REMIND VLAD
           </a>
         </nav>
         <a
-          href="#counters"
+          href="#remind"
           className="rounded-full border-[3px] border-ink bg-clay px-4 py-2 font-display text-xs font-bold text-cream shadow-thickSm transition-transform hover:-translate-y-0.5 active:translate-y-0 sm:px-5 sm:text-sm"
         >
           REMIND VLAD

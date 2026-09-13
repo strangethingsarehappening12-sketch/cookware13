@@ -18,8 +18,9 @@ interface TweetEmbedProps {
 }
 
 /**
- * Renders a live tweet using X's official oEmbed widget, fixed to dark
- * theme (the site itself is dark-only now).
+ * Renders a live tweet using X's official oEmbed widget, fixed to X's light
+ * theme (a deliberate contrast against the site's otherwise dark theme —
+ * the tweet card is meant to stand out as a bright "screenshot" moment).
  *
  * widgetHostRef is a plain div that React never renders children into via
  * JSX — X's widget script replaces content by mutating the DOM directly,
@@ -38,7 +39,7 @@ export default function TweetEmbed({ tweetUrl, className }: TweetEmbedProps) {
     host.innerHTML = ''
     const blockquote = document.createElement('blockquote')
     blockquote.className = 'twitter-tweet'
-    blockquote.setAttribute('data-theme', 'dark')
+    blockquote.setAttribute('data-theme', 'light')
     const link = document.createElement('a')
     link.href = tweetUrl
     link.textContent = 'Loading tweet…'

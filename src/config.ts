@@ -157,7 +157,10 @@ const GECKOTERMINAL_API_BASE = 'https://api.geckoterminal.com/api/v2'
 
 export interface PricePoint {
   time: number // unix seconds
-  price: number
+  open: number
+  high: number
+  low: number
+  close: number
 }
 
 export interface PriceHistorySnapshot {
@@ -226,10 +229,10 @@ export async function getPriceHistory(limit = 48): Promise<PriceHistorySnapshot>
 
     // GeckoTerminal returns newest-first; chart wants oldest-first.
     const points: PricePoint[] = raw
-      .map(([time, , , , close]) => ({ time, price: close }))
+      .map(([time, open, high, low, close]) => ({ time, open, high, low, close }))
       .reverse()
 
-    return { points, currentPrice: points[points.length - 1].price, isLive: true }
+    return { points, currentPrice: points[points.length - 1].close, isLive: true }
   } catch (err) {
     return {
       points: [],

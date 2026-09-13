@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { cookwareConfig, getPriceHistory, PriceHistorySnapshot } from '../config'
+import { cookwareConfig, getPriceHistory, PriceHistorySnapshot, PricePoint } from '../config'
 
 function formatPrice(price: number): string {
   if (price >= 1) return `$${price.toFixed(2)}`
@@ -7,44 +7,57 @@ function formatPrice(price: number): string {
   return `$${price.toPrecision(3)}`
 }
 
-function Sparkline({ points }: { points: { time: number; price: number }[] }) {
+function CandlestickChart({ points }: { points: PricePoint[] }) {
   const width = 600
-  const height = 160
-  const padding = 8
+  const height = 200
+  const paddingY = 10
+  const gap = 2 // gap between candles, in px
 
-  const prices = points.map((p) => p.price)
-  const min = Math.min(...prices)
-  const max = Math.max(...prices)
+  const highs = points.map((p) => p.high)
+  const lows = points.map((p) => p.low)
+  const min = Math.min(...lows)
+  const max = Math.max(...highs)
   const range = max - min || 1
 
-  const coords = points.map((p, i) => {
-    const x = padding + (i / (points.length - 1 || 1)) * (width - padding * 2)
-    const y = height - padding - ((p.price - min) / range) * (height - padding * 2)
-    return [x, y] as const
-  })
+  const candleWidth = width / points.length
+  const bodyWidth = Math.max(1, candleWidth - gap)
 
-  const linePath = coords.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x},${y}`).join(' ')
-  const areaPath = `${linePath} L${coords[coords.length - 1][0]},${height} L${coords[0][0]},${height} Z`
-
-  const isUp = prices[prices.length - 1] >= prices[0]
+  const yFor = (value: number) =>
+    height - paddingY - ((value - min) / range) * (height - paddingY * 2)
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="sparkline-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#00C805" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#00C805" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill="url(#sparkline-fill)" />
-      <path
-        d={linePath}
-        fill="none"
-        stroke={isUp ? '#00C805' : '#E8560F'}
-        strokeWidth="3"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
+      {points.map((p, i) => {
+        const isUp = p.close >= p.open
+        const color = isUp ? '#00C805' : '#E8560F'
+        const x = i * candleWidth + candleWidth / 2
+
+        const bodyTop = yFor(Math.max(p.open, p.close))
+        const bodyBottom = yFor(Math.min(p.open, p.close))
+        const bodyHeight = Math.max(1.5, bodyBottom - bodyTop)
+
+        return (
+          <g key={p.time}>
+            {/* wick: full high-low range */}
+            <line
+              x1={x}
+              x2={x}
+              y1={yFor(p.high)}
+              y2={yFor(p.low)}
+              stroke={color}
+              strokeWidth={1}
+            />
+            {/* body: open-close range */}
+            <rect
+              x={x - bodyWidth / 2}
+              y={bodyTop}
+              width={bodyWidth}
+              height={bodyHeight}
+              fill={color}
+            />
+          </g>
+        )
+      })}
     </svg>
   )
 }
@@ -85,12 +98,12 @@ export default function PriceChart() {
       </div>
       <p className="mt-2 text-sm text-ink/60">
         {snapshot.isLive
-          ? 'Live from GeckoTerminal · last 48 hours'
+          ? 'Live from GeckoTerminal · last 48 hours, 1h candles'
           : snapshot.error ?? 'Loading price history…'}
       </p>
       <div className="mt-6">
         {snapshot.points.length > 1 ? (
-          <Sparkline points={snapshot.points} />
+          <CandlestickChart points={snapshot.points} />
         ) : (
           <div className="flex h-40 items-center justify-center rounded-2xl border-2 border-ink/20 text-sm text-ink/40">
             No chart data yet
