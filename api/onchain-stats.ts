@@ -25,6 +25,27 @@ async function blockscoutFetch<T = any>(path: string, params: Record<string, str
   return res.json() as Promise<T>
 }
 
+// The older, Etherscan-compatible API — a genuinely separate code path in
+// Blockscout's backend from the v2 REST API above. Used as a fallback for
+// bulk transfer listing, since the v2 REST endpoints (both address- and
+// token-centric) are 500ing for $HOOD specifically, while this shim isn't.
+function blockscoutLegacyBase(): string {
+  return process.env.BLOCKSCOUT_API_KEY
+    ? `https://api.blockscout.com/v2/api`
+    : 'https://robinhoodchain.blockscout.com/api'
+}
+
+async function blockscoutLegacyFetch<T = any>(params: Record<string, string>): Promise<T> {
+  const apiKey = process.env.BLOCKSCOUT_API_KEY
+  const url = new URL(blockscoutLegacyBase())
+  if (apiKey) url.searchParams.set('chain_id', String(CHAIN_ID))
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+  if (apiKey) url.searchParams.set('apikey', apiKey)
+  const res = await fetch(url.toString())
+  if (!res.ok) throw new Error(`Blockscout (legacy API) returned ${res.status}`)
+  return res.json() as Promise<T>
+}
+
 const COOKWARE_TOKEN = '0x315A404872AE8D4FaD6939461a4ab0B691817777'
 const HOOD_TOKEN = '0xfB5b5778d45AE47F15323fb59B666c655174A79C'
 const DISTRIBUTOR = '0xcED96B8EEa958A0d53cD99F502fCaC15754D8345'
@@ -37,43 +58,45 @@ export const config = {
   maxDuration: 30,
 }
 
-interface TokenTransfer {
-  from?: { hash?: string }
-  token?: { address_hash?: string } | null
-  total?: { value?: string; decimals?: string } | null
-}
-interface TransfersResponse {
-  items: TokenTransfer[]
-  next_page_params: Record<string, string | number> | null
+interface EtherscanTokenTx {
+  from?: string
+  value?: string
+  tokenDecimal?: string
 }
 
 async function fetchDistributed() {
-  // Querying transfers FROM the distributor contract's own address 500s on
-  // this Blockscout deployment — likely something about how a batch-
-  // distribution contract's transfers get indexed from the sender side.
-  // Querying the $HOOD token's OWN transfer list instead (and filtering to
-  // this contract as the sender) is a different endpoint/code path that
-  // sidesteps whatever's breaking on the address-centric one — this is
-  // confirmed to work from the *recipient* side (the per-wallet payout
-  // checker), so token-centric listing is the more reliable approach here.
+  // Querying transfers via Blockscout's v2 REST API (both address-centric
+  // and token-centric) 500s for $HOOD specifically. This uses the older,
+  // Etherscan-compatible shim instead — different backend code path,
+  // paginated with page/offset rather than a cursor.
   let total = 0
   let payoutsCount = 0
-  let params: Record<string, string> = {}
+  const offset = 100
 
-  for (let page = 0; page < MAX_TRANSFER_PAGES; page++) {
-    const data = await blockscoutFetch<TransfersResponse>(`/tokens/${HOOD_TOKEN}/transfers`, params)
-    for (const t of data.items ?? []) {
-      const isOutgoing = t.from?.hash?.toLowerCase() === DISTRIBUTOR.toLowerCase()
-      if (isOutgoing && t.total?.value) {
-        const decimals = Number(t.total.decimals ?? 18)
-        total += Number(t.total.value) / 10 ** decimals
+  for (let page = 1; page <= MAX_TRANSFER_PAGES; page++) {
+    const data = await blockscoutLegacyFetch<{ result: EtherscanTokenTx[] | string }>({
+      module: 'account',
+      action: 'tokentx',
+      contractaddress: HOOD_TOKEN,
+      address: DISTRIBUTOR,
+      page: String(page),
+      offset: String(offset),
+      sort: 'desc',
+    })
+
+    const items = Array.isArray(data.result) ? data.result : []
+    if (items.length === 0) return { total, payoutsCount, truncated: false }
+
+    for (const t of items) {
+      const isOutgoing = t.from?.toLowerCase() === DISTRIBUTOR.toLowerCase()
+      if (isOutgoing && t.value) {
+        const decimals = Number(t.tokenDecimal ?? 18)
+        total += Number(t.value) / 10 ** decimals
         payoutsCount += 1
       }
     }
-    if (!data.next_page_params) return { total, payoutsCount, truncated: false }
-    params = Object.fromEntries(
-      Object.entries(data.next_page_params).map(([k, v]) => [k, String(v)]),
-    )
+
+    if (items.length < offset) return { total, payoutsCount, truncated: false }
   }
   return { total, payoutsCount, truncated: true }
 }
