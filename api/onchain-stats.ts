@@ -52,7 +52,7 @@ const DISTRIBUTOR = '0xcED96B8EEa958A0d53cD99F502fCaC15754D8345'
 
 const CACHE_KEY = 'cookware:onchain-stats'
 const CACHE_TTL_SECONDS = 45
-const MAX_TRANSFER_PAGES = 8
+const MAX_TRANSFER_PAGES = 20
 
 export const config = {
   maxDuration: 30,
@@ -71,7 +71,7 @@ async function fetchDistributed() {
   // paginated with page/offset rather than a cursor.
   let total = 0
   let payoutsCount = 0
-  const offset = 100
+  const offset = 10
 
   for (let page = 1; page <= MAX_TRANSFER_PAGES; page++) {
     const data = await blockscoutLegacyFetch<{ result: EtherscanTokenTx[] | string }>({
