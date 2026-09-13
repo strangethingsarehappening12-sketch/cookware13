@@ -79,8 +79,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let truncated = false
 
     if (hasActivity) {
-      // Deliberately NOT filtering server-side by `token`/`type` — see the
-      // note in onchain-stats.ts. Filtering to $HOOD happens below instead.
+      // Deliberately NOT filtering server-side by `token`/`type` — Blockscout
+      // has been unreliable combining filters. Filtering to $HOOD happens
+      // below instead, using each transfer's own contract address.
       let params: Record<string, string> = {}
 
       for (let page = 0; page < MAX_TRANSFER_PAGES; page++) {

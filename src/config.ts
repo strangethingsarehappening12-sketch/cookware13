@@ -222,14 +222,13 @@ export function formatCompactNumber(value: number): string {
 }
 
 // ─────────────────────────────────────────────────────────────
-// ON-CHAIN STATS: HOLDER REWARDS + PER-WALLET PAYOUT CHECK
-// Both now go through our own serverless API routes (/api/onchain-stats,
-// /api/payout-check) instead of calling Blockscout directly from the
-// browser. Those routes call Blockscout's PRO API (fast, higher rate
-// limit, falls back to the free public instance if no key is configured
-// yet) and cache results briefly in Redis — so repeat visitors get an
-// instant cached response instead of everyone re-triggering the same
-// slow paginated lookup independently.
+// ON-CHAIN STATS: PER-WALLET PAYOUT CHECK
+// Goes through our own serverless API route (/api/payout-check) instead of
+// calling Blockscout directly from the browser. That route calls
+// Blockscout's PRO API (fast, higher rate limit, falls back to the free
+// public instance if no key is configured yet) and caches results briefly
+// in Redis — so repeat checks of the same address get an instant cached
+// response instead of re-triggering the same lookup independently.
 // ─────────────────────────────────────────────────────────────
 
 export interface StatValue {
@@ -238,40 +237,6 @@ export interface StatValue {
   error?: string
   /** True if the underlying lookup hit its pagination safety cap — the real total may be higher. */
   truncated?: boolean
-}
-
-export interface HolderRewardsSummary {
-  isLive: boolean
-  error?: string
-  /** Total $HOOD paid out, in USD — null if a live price isn't available. */
-  totalUsd: number | null
-  /** Total $HOOD paid out, in HOOD tokens. */
-  totalHood: number | null
-  /** Number of individual payout transfers. */
-  payoutsCount: number | null
-  /** Number of distinct COOKWARE holders (i.e. eligible/earning). */
-  holdersCount: number | null
-  truncated?: boolean
-}
-
-/** Combined snapshot for the "HOLDER REWARDS" summary card. */
-export async function getHolderRewardsSummary(): Promise<HolderRewardsSummary> {
-  try {
-    const res = await fetch('/api/onchain-stats')
-    const data = (await res.json()) as Omit<HolderRewardsSummary, 'error'> & { error?: string }
-    if (!res.ok) throw new Error(data.error ?? `Stats API returned ${res.status}`)
-    if (!data.isLive) throw new Error(data.error ?? 'On-chain stats unavailable right now.')
-    return data
-  } catch (err) {
-    return {
-      isLive: false,
-      error: err instanceof Error ? err.message : 'Unknown error fetching holder rewards.',
-      totalUsd: null,
-      totalHood: null,
-      payoutsCount: null,
-      holdersCount: null,
-    }
-  }
 }
 
 // Basic sanity check before hitting the API with something that isn't an address.
