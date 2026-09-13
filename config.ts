@@ -77,6 +77,7 @@ const DEXSCREENER_TOKENS_URL = 'https://api.dexscreener.com/latest/dex/tokens/'
 
 interface DexScreenerPair {
   chainId: string
+  pairAddress?: string
   liquidity?: { usd?: number }
   marketCap?: number
   fdv?: number
@@ -146,6 +147,53 @@ export async function getMarketCapProgress(): Promise<MarketCapSnapshot> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// PAIR ADDRESS (for the embedded DexScreener chart)
+// The live price chart uses DexScreener's own embeddable widget — the
+// real interactive chart with its built-in timeframe/candle-type controls
+// — rather than a custom-built one. It just needs the pair address to
+// point at, which is cached after the first lookup since it never changes.
+// ─────────────────────────────────────────────────────────────
+let cachedPairAddress: string | null = null
+
+export interface PairAddressResult {
+  pairAddress: string | null
+  error?: string
+}
+
+export async function getBestPairAddress(): Promise<PairAddressResult> {
+  if (cachedPairAddress) return { pairAddress: cachedPairAddress }
+
+  const { tokenAddress, dexscreenerChainId } = cookwareConfig
+  if (!tokenAddress) return { pairAddress: null, error: 'No tokenAddress configured yet.' }
+
+  try {
+    const res = await fetch(`${DEXSCREENER_TOKENS_URL}${tokenAddress}`)
+    if (!res.ok) throw new Error(`DexScreener returned ${res.status}`)
+    const data = (await res.json()) as { pairs: DexScreenerPair[] | null }
+    const pairsOnChain = (data.pairs ?? []).filter((p) => p.chainId === dexscreenerChainId)
+
+    if (pairsOnChain.length === 0) {
+      return { pairAddress: null, error: 'No trading pair found yet for this token on this chain.' }
+    }
+
+    const best = pairsOnChain.reduce((top, p) =>
+      (p.liquidity?.usd ?? 0) > (top.liquidity?.usd ?? 0) ? p : top,
+    )
+    if (!best.pairAddress) {
+      return { pairAddress: null, error: 'Pair found, but no pair address was returned.' }
+    }
+
+    cachedPairAddress = best.pairAddress
+    return { pairAddress: cachedPairAddress }
+  } catch (err) {
+    return {
+      pairAddress: null,
+      error: err instanceof Error ? err.message : 'Unknown error resolving the trading pair.',
+    }
+  }
+}
+
 export function getCurrentDay(launchDate: string, now: Date = new Date()): number {
   const start = new Date(launchDate + 'T00:00:00')
   const diffMs = now.getTime() - start.getTime()
@@ -174,163 +222,41 @@ export function formatCompactNumber(value: number): string {
 }
 
 // ─────────────────────────────────────────────────────────────
-// ON-CHAIN STATS: HOLDER COUNT + $HOOD DISTRIBUTED
-// Both pulled straight from Robinhood Chain's official Blockscout
-// explorer, which exposes a free public REST API — no key needed.
-// https://robinhoodchain.blockscout.com/api-docs
+// ON-CHAIN STATS: PER-WALLET PAYOUT CHECK
+// Goes through our own serverless API route (/api/payout-check) instead of
+// calling Blockscout directly from the browser. That route calls
+// Blockscout's PRO API (fast, higher rate limit, falls back to the free
+// public instance if no key is configured yet) and caches results briefly
+// in Redis — so repeat checks of the same address get an instant cached
+// response instead of re-triggering the same lookup independently.
 // ─────────────────────────────────────────────────────────────
-const BLOCKSCOUT_API_BASE = 'https://robinhoodchain.blockscout.com/api/v2'
 
 export interface StatValue {
   value: number | null
   isLive: boolean
   error?: string
-  /** True if we hit the pagination safety cap and stopped early — the real total may be higher. */
+  /** True if the underlying lookup hit its pagination safety cap — the real total may be higher. */
   truncated?: boolean
-}
-
-/** Current holder count for the COOKWARE token, read from Blockscout's token counters endpoint. */
-export async function getHolderCount(): Promise<StatValue> {
-  const { tokenAddress } = cookwareConfig
-  if (!tokenAddress) {
-    return { value: null, isLive: false, error: 'No tokenAddress configured yet.' }
-  }
-
-  try {
-    const res = await fetch(`${BLOCKSCOUT_API_BASE}/tokens/${tokenAddress}/counters`)
-    if (!res.ok) throw new Error(`Blockscout returned ${res.status}`)
-    const data = (await res.json()) as { token_holders_count?: string }
-    const count = Number(data.token_holders_count)
-    if (!Number.isFinite(count)) throw new Error('No holder count in response.')
-    return { value: count, isLive: true }
-  } catch (err) {
-    return {
-      value: null,
-      isLive: false,
-      error: err instanceof Error ? err.message : 'Unknown error fetching holder count.',
-    }
-  }
-}
-
-interface BlockscoutTokenTransfer {
-  from?: { hash?: string }
-  total?: { value?: string; decimals?: string } | null
-}
-
-interface BlockscoutTokenTransfersResponse {
-  items: BlockscoutTokenTransfer[]
-  next_page_params: Record<string, string | number> | null
-}
-
-// Safety cap on pagination so a very long distribution history can't hang
-// the page or hammer the free public API on every visitor's browser.
-const MAX_TRANSFER_PAGES = 40
-
-/**
- * Total $HOOD sent out by the distributor wallet to holders, summed from
- * Blockscout's token-transfer history for that address (outgoing transfers
- * of the HOOD token only — incoming funding transfers are excluded).
- */
-export async function getTotalHoodDistributed(): Promise<StatValue> {
-  const { distributorAddress, hoodTokenAddress } = cookwareConfig
-  if (!distributorAddress || !hoodTokenAddress) {
-    return { value: null, isLive: false, error: 'Distributor or HOOD token address not configured yet.' }
-  }
-
-  let total = 0
-  let query: Record<string, string> = { token: hoodTokenAddress, type: 'ERC-20' }
-
-  try {
-    for (let page = 0; page < MAX_TRANSFER_PAGES; page++) {
-      const res = await fetch(
-        `${BLOCKSCOUT_API_BASE}/addresses/${distributorAddress}/token-transfers?${new URLSearchParams(
-          query,
-        ).toString()}`,
-      )
-      if (!res.ok) throw new Error(`Blockscout returned ${res.status}`)
-      const data = (await res.json()) as BlockscoutTokenTransfersResponse
-
-      for (const t of data.items ?? []) {
-        const isOutgoing = t.from?.hash?.toLowerCase() === distributorAddress.toLowerCase()
-        if (isOutgoing && t.total?.value) {
-          const decimals = Number(t.total.decimals ?? 18)
-          total += Number(t.total.value) / 10 ** decimals
-        }
-      }
-
-      if (!data.next_page_params) {
-        return { value: total, isLive: true }
-      }
-      query = Object.fromEntries(
-        Object.entries({ token: hoodTokenAddress, type: 'ERC-20', ...data.next_page_params }).map(
-          ([k, v]) => [k, String(v)],
-        ),
-      )
-    }
-    // Hit the page cap before running out of pages — still a real, live number,
-    // just possibly an undercount of the true all-time total.
-    return { value: total, isLive: true, truncated: true }
-  } catch (err) {
-    return {
-      value: null,
-      isLive: false,
-      error: err instanceof Error ? err.message : 'Unknown error fetching HOOD distributed.',
-    }
-  }
 }
 
 // Basic sanity check before hitting the API with something that isn't an address.
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/
 
 /**
- * How much $HOOD a specific wallet has received from the distributor, summed
- * from that wallet's own token-transfer history (filtered to transfers whose
- * sender is the distributor). Querying the wallet's history rather than the
- * distributor's keeps this fast — one holder's history is a lot shorter than
- * the whole campaign's.
+ * How much $HOOD a specific wallet has received from the distributor —
+ * looked up (and briefly cached) server-side via /api/payout-check.
  */
 export async function getHoodReceivedByAddress(walletAddress: string): Promise<StatValue> {
-  const { distributorAddress, hoodTokenAddress } = cookwareConfig
   const address = walletAddress.trim()
-
   if (!EVM_ADDRESS_RE.test(address)) {
     return { value: null, isLive: false, error: "That doesn't look like a valid wallet address." }
   }
-  if (!distributorAddress || !hoodTokenAddress) {
-    return { value: null, isLive: false, error: 'Distributor or HOOD token address not configured yet.' }
-  }
-
-  let total = 0
-  let query: Record<string, string> = { token: hoodTokenAddress, type: 'ERC-20' }
 
   try {
-    for (let page = 0; page < MAX_TRANSFER_PAGES; page++) {
-      const res = await fetch(
-        `${BLOCKSCOUT_API_BASE}/addresses/${address}/token-transfers?${new URLSearchParams(
-          query,
-        ).toString()}`,
-      )
-      if (!res.ok) throw new Error(`Blockscout returned ${res.status}`)
-      const data = (await res.json()) as BlockscoutTokenTransfersResponse
-
-      for (const t of data.items ?? []) {
-        const fromDistributor = t.from?.hash?.toLowerCase() === distributorAddress.toLowerCase()
-        if (fromDistributor && t.total?.value) {
-          const decimals = Number(t.total.decimals ?? 18)
-          total += Number(t.total.value) / 10 ** decimals
-        }
-      }
-
-      if (!data.next_page_params) {
-        return { value: total, isLive: true }
-      }
-      query = Object.fromEntries(
-        Object.entries({ token: hoodTokenAddress, type: 'ERC-20', ...data.next_page_params }).map(
-          ([k, v]) => [k, String(v)],
-        ),
-      )
-    }
-    return { value: total, isLive: true, truncated: true }
+    const res = await fetch(`/api/payout-check?address=${encodeURIComponent(address)}`)
+    const data = (await res.json()) as StatValue
+    if (!res.ok) throw new Error(data.error ?? `Payout check API returned ${res.status}`)
+    return { ...data, isLive: true }
   } catch (err) {
     return {
       value: null,
