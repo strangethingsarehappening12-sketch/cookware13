@@ -8,7 +8,19 @@ const DISTRIBUTOR = '0xcED96B8EEa958A0d53cD99F502fCaC15754D8345'
 
 const CACHE_KEY = 'cookware:onchain-stats'
 const CACHE_TTL_SECONDS = 45
-const MAX_TRANSFER_PAGES = 40
+// Kept deliberately low — this runs inside a serverless function with a
+// hard execution time limit, unlike the old client-side version which ran
+// in the browser with no such cap. Each page is a network round-trip to
+// Blockscout, so a high cap here risks the function timing out entirely
+// (which shows up to visitors as a 500) rather than just taking a while.
+const MAX_TRANSFER_PAGES = 8
+
+// Allow more time than the platform default where the plan supports it —
+// still bounded, just less likely to hit the ceiling on a busy distributor
+// wallet. Harmless on plans that clamp this to their own lower max.
+export const config = {
+  maxDuration: 30,
+}
 
 interface TokenTransfer {
   from?: { hash?: string }

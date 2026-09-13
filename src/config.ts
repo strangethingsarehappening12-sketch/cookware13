@@ -258,8 +258,8 @@ export interface HolderRewardsSummary {
 export async function getHolderRewardsSummary(): Promise<HolderRewardsSummary> {
   try {
     const res = await fetch('/api/onchain-stats')
-    if (!res.ok) throw new Error(`Stats API returned ${res.status}`)
     const data = (await res.json()) as Omit<HolderRewardsSummary, 'error'> & { error?: string }
+    if (!res.ok) throw new Error(data.error ?? `Stats API returned ${res.status}`)
     if (!data.isLive) throw new Error(data.error ?? 'On-chain stats unavailable right now.')
     return data
   } catch (err) {
