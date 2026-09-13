@@ -39,6 +39,7 @@ export const config = {
 
 interface TokenTransfer {
   from?: { hash?: string }
+  token?: { address_hash?: string } | null
   total?: { value?: string; decimals?: string } | null
 }
 interface TransfersResponse {
@@ -49,7 +50,12 @@ interface TransfersResponse {
 async function fetchDistributed() {
   let total = 0
   let payoutsCount = 0
-  let params: Record<string, string> = { token: HOOD_TOKEN, type: 'ERC-20' }
+  // Deliberately NOT filtering server-side by `token`/`type` here — that
+  // combination is what's been returning a 500 from Blockscout for this
+  // address. Pulling everything for the address and filtering to $HOOD
+  // ourselves avoids depending on exactly which filter params this
+  // particular Blockscout deployment supports.
+  let params: Record<string, string> = {}
 
   for (let page = 0; page < MAX_TRANSFER_PAGES; page++) {
     const data = await blockscoutFetch<TransfersResponse>(
@@ -58,7 +64,8 @@ async function fetchDistributed() {
     )
     for (const t of data.items ?? []) {
       const isOutgoing = t.from?.hash?.toLowerCase() === DISTRIBUTOR.toLowerCase()
-      if (isOutgoing && t.total?.value) {
+      const isHood = t.token?.address_hash?.toLowerCase() === HOOD_TOKEN.toLowerCase()
+      if (isOutgoing && isHood && t.total?.value) {
         const decimals = Number(t.total.decimals ?? 18)
         total += Number(t.total.value) / 10 ** decimals
         payoutsCount += 1
@@ -66,9 +73,7 @@ async function fetchDistributed() {
     }
     if (!data.next_page_params) return { total, payoutsCount, truncated: false }
     params = Object.fromEntries(
-      Object.entries({ token: HOOD_TOKEN, type: 'ERC-20', ...data.next_page_params }).map(
-        ([k, v]) => [k, String(v)],
-      ),
+      Object.entries(data.next_page_params).map(([k, v]) => [k, String(v)]),
     )
   }
   return { total, payoutsCount, truncated: true }

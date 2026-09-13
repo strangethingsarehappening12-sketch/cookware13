@@ -37,6 +37,7 @@ export const config = {
 
 interface TokenTransfer {
   from?: { hash?: string }
+  token?: { address_hash?: string } | null
   total?: { value?: string; decimals?: string } | null
 }
 interface TransfersResponse {
@@ -66,7 +67,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let total = 0
     let truncated = false
-    let params: Record<string, string> = { token: HOOD_TOKEN, type: 'ERC-20' }
+    // Deliberately NOT filtering server-side by `token`/`type` — see the
+    // note in onchain-stats.ts. Filtering to $HOOD happens below instead.
+    let params: Record<string, string> = {}
 
     for (let page = 0; page < MAX_TRANSFER_PAGES; page++) {
       const data = await blockscoutFetch<TransfersResponse>(
@@ -75,16 +78,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       )
       for (const t of data.items ?? []) {
         const fromDistributor = t.from?.hash?.toLowerCase() === DISTRIBUTOR.toLowerCase()
-        if (fromDistributor && t.total?.value) {
+        const isHood = t.token?.address_hash?.toLowerCase() === HOOD_TOKEN.toLowerCase()
+        if (fromDistributor && isHood && t.total?.value) {
           const decimals = Number(t.total.decimals ?? 18)
           total += Number(t.total.value) / 10 ** decimals
         }
       }
       if (!data.next_page_params) break
       params = Object.fromEntries(
-        Object.entries({ token: HOOD_TOKEN, type: 'ERC-20', ...data.next_page_params }).map(
-          ([k, v]) => [k, String(v)],
-        ),
+        Object.entries(data.next_page_params).map(([k, v]) => [k, String(v)]),
       )
       if (page === MAX_TRANSFER_PAGES - 1) truncated = true
     }
