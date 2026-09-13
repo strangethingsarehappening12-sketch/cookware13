@@ -62,6 +62,7 @@ interface EtherscanTokenTx {
   from?: string
   value?: string
   tokenDecimal?: string
+  contractAddress?: string
 }
 
 async function fetchDistributed() {
@@ -69,15 +70,21 @@ async function fetchDistributed() {
   // and token-centric) 500s for $HOOD specifically. This uses the older,
   // Etherscan-compatible shim instead — different backend code path,
   // paginated with page/offset rather than a cursor.
+  //
+  // Only `address` is passed as a server-side filter — NOT `contractaddress`
+  // as well. Combining both returned a suspiciously small total, consistent
+  // with this shim not correctly honoring both filters together (likely
+  // ignoring one and returning a slice of unrelated recent activity
+  // instead). Filtering to $HOOD is done ourselves below, using each
+  // transfer's own `contractAddress` field.
   let total = 0
   let payoutsCount = 0
-  const offset = 10
+  const offset = 100
 
   for (let page = 1; page <= MAX_TRANSFER_PAGES; page++) {
     const data = await blockscoutLegacyFetch<{ result: EtherscanTokenTx[] | string }>({
       module: 'account',
       action: 'tokentx',
-      contractaddress: HOOD_TOKEN,
       address: DISTRIBUTOR,
       page: String(page),
       offset: String(offset),
@@ -89,7 +96,8 @@ async function fetchDistributed() {
 
     for (const t of items) {
       const isOutgoing = t.from?.toLowerCase() === DISTRIBUTOR.toLowerCase()
-      if (isOutgoing && t.value) {
+      const isHood = t.contractAddress?.toLowerCase() === HOOD_TOKEN.toLowerCase()
+      if (isOutgoing && isHood && t.value) {
         const decimals = Number(t.tokenDecimal ?? 18)
         total += Number(t.value) / 10 ** decimals
         payoutsCount += 1
