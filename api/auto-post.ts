@@ -88,6 +88,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({ posted: true, text, reminders })
   } catch (err) {
+    // Logged explicitly so the real error shows up directly in Vercel's Logs
+    // stream, rather than needing to dig into the response body separately.
+    console.error('auto-post failed:', err)
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Unknown error posting to X.',
     })
